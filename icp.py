@@ -4,8 +4,8 @@ import open3d as o3d
 
 if __name__ ==  "__main__":
 
-    file1 = './objFile/20180221145253607.000301.obj'
-    file2 = './objFile/20180221145253607.000302.obj'
+    file1 = './objFile/sample1.obj'
+    file2 = './objFile/sample2.obj'
 
     mesh1 = o3d.io.read_triangle_mesh(file1)
     mesh2 = o3d.io.read_triangle_mesh(file2)
