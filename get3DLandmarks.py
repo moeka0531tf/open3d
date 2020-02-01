@@ -10,7 +10,7 @@ import math
 
 
 # モデルの読み込み→回転→画像保存まで, ピンホールカメラの焦点距離を取得
-def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg"):
+def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, height=480):
     # read file
     mesh = o3d.io.read_triangle_mesh(objFile)
 
@@ -33,9 +33,9 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg"):
 
     # 回転後表示
     vis = o3d.visualization.Visualizer()
-    vis.create_window(width= 640, height=480)
+    vis.create_window(width = width, height = height)
     vis.add_geometry(mesh)
-    #vis.run()
+    vis.run()
 
     # 画像保存
     vis.capture_screen_image("./faceRotateData/" + imageName)
@@ -44,11 +44,11 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg"):
     ctr = vis.get_view_control()
     pinhole = ctr.convert_to_pinhole_camera_parameters()
     pi = pinhole.intrinsic
-    focal_length = pi.get_focal_length()
+    im = pi.intrinsic_matrix
 
     vis.destroy_window()
 
-    return focal_length
+    return im
 
 
 # 顔特徴点を取得する関数
@@ -79,10 +79,21 @@ def getFacialLandmarks(imageName):
                 s = s.replace(")", "")
                 s = s.replace(",", "")
                 x, y = s.split(" ")
-                points.append((int(x), int(y)))
+                points.append((int(x), int(y), 1))
 
     return points
 
+# カメラ座標を取得
+def getCameraCoordinate(points, im):
+
+    cameraPoints = []
+
+    for i in range(0, len(points)):
+        array = np.array([points[i]])
+        cameraPoint = np.dot(im, array.T)
+        cameraPoints.append(cameraPoint.T.reshape(3,).tolist())
+
+    return cameraPoints
 
 
 if __name__ == "__main__":
@@ -90,10 +101,16 @@ if __name__ == "__main__":
     file = 'file'
     imageName = 'faceImage-15degree.jpg'
 
+    # 画像サイズ
+    width = 640
+    height = 480
+
     # 15度x回転させた
     # 焦点距離を取得
-    focal_length = getRotateImage(file, 15, 0, imageName)
-    print(focal_length)
+    im = getRotateImage(file, 15, 0, imageName, width, height)
 
     # 顔特徴点取得
     points = getFacialLandmarks(imageName)
+
+    # 顔特徴点のカメラ座標を取得
+    cameraPoints = getCameraCoordinate(points, im)
