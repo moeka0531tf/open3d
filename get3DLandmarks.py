@@ -1,9 +1,6 @@
-import sys
-import os
 import dlib
 import glob
 from skimage import io
-import cv2
 import open3d as o3d
 import numpy as np
 import math
@@ -13,13 +10,15 @@ import math
 def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, height=480):
     # read file
     mesh = o3d.io.read_triangle_mesh(objFile)
+    # 頂点座標取得
+    # print(np.array(mesh.vertices))
 
     # 回転行列の計算
+    # ラジアンに変換
     x = math.radians(dx)
     y = math.radians(dy)
 
     # x軸回転
-    x = math.radians(dx)
     Rx = np.array([[1, 0, 0],
                    [0, np.cos(y), np.sin(y)],
                    [0, -np.sin(y), np.cos(y)]])
@@ -30,6 +29,8 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, 
                    [0, 1, 0],
                    [np.sin(x), 0, np.cos(x)]])
     mesh.rotate(Ry)
+    # 回転後の頂点座標取得
+    # print(np.array(mesh.vertices))
 
     # 回転後表示
     vis = o3d.visualization.Visualizer()
@@ -43,13 +44,14 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, 
     # ピンホールカメラモデルのデータに変換
     ctr = vis.get_view_control()
     pinhole = ctr.convert_to_pinhole_camera_parameters()
+    # カメラ外部パラメータ
+    extrinsic = pinhole.extrinsic
     pi = pinhole.intrinsic
     im = pi.intrinsic_matrix
 
     vis.destroy_window()
 
-    return im
-
+    return im, extrinsic
 
 # 顔特徴点を取得する関数
 def getFacialLandmarks(imageName):
@@ -63,7 +65,6 @@ def getFacialLandmarks(imageName):
     predictor = dlib.shape_predictor(predictor_path)
 
     for f in glob.glob(face_path):
-        print("Processing file: {}".format(f))
         img = io.imread(f)
         dets = detector(img, 1)
 
@@ -84,16 +85,48 @@ def getFacialLandmarks(imageName):
     return points
 
 # カメラ座標を取得
-def getCameraCoordinate(points, im):
+def getCameraPoints(points, im):
 
     cameraPoints = []
 
     for i in range(0, len(points)):
         array = np.array([points[i]])
-        cameraPoint = np.dot(im, array.T)
+        cameraPoint = np.dot(np.linalg.inv(im), array.T)
         cameraPoints.append(cameraPoint.T.reshape(3,).tolist())
 
     return cameraPoints
+
+# カメラ座標からワールド座標への変換
+def getObjectPoints(dx, dy, cameraPoints, extrinsic):
+
+    # ラジアンに変換
+    x = math.radians(dx)
+    y = math.radians(dy)
+
+    # x軸回転
+    Rx = np.array([[1, 0, 0],
+                   [0, np.cos(y), np.sin(y)],
+                   [0, -np.sin(y), np.cos(y)]])
+
+    # y軸回転
+    Ry = np.array([[np.cos(x), 0, -np.sin(x)],
+                   [0, 1, 0],
+                   [np.sin(x), 0, np.cos(x)]])
+
+    # 最終的な特徴点
+
+    for i in range(0, len(cameraPoints)):
+        array = np.array(points[i])
+        array = np.insert(array, 3, 1)
+        array = np.array([array])
+        objectPoint = np.dot(np.linalg.inv(extrinsic), array.T)
+        objectPoint = np.delete(objectPoint, 3, 0)
+
+        # 正面向きの座標を取得する
+        point = np.dot(np.linalg.inv(Ry), objectPoint)
+        points.append(point.T.reshape(3,).tolist())
+
+    return points
 
 
 if __name__ == "__main__":
@@ -105,12 +138,20 @@ if __name__ == "__main__":
     width = 640
     height = 480
 
+    # 回転角度
+    x = 15
+    y = 0
+
     # 15度x回転させた
     # 焦点距離を取得
-    im = getRotateImage(file, 15, 0, imageName, width, height)
+    im, extrinsic = getRotateImage(file, x, y, imageName, width, height)
 
     # 顔特徴点取得
     points = getFacialLandmarks(imageName)
 
     # 顔特徴点のカメラ座標を取得
-    cameraPoints = getCameraCoordinate(points, im)
+    cameraPoints = getCameraPoints(points, im)
+
+    # カメラ座標から実際の座標に変換
+    objectPoints = getObjectPoints(x, y, cameraPoints, extrinsic)
+
