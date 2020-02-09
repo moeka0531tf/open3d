@@ -13,6 +13,10 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, 
     # 頂点座標取得
     # print(np.array(mesh.vertices))
 
+    axis = mesh.get_axis_aligned_bounding_box()
+    coordinate = o3d.geometry.TriangleMesh.create_coordinate_frame(size=200, origin=[0, 0, 0])
+    # print(coordinate)
+
     # 回転行列の計算
     # ラジアンに変換
     x = math.radians(dx)
@@ -36,6 +40,7 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, 
     vis = o3d.visualization.Visualizer()
     vis.create_window(width = width, height = height)
     vis.add_geometry(mesh)
+    vis.add_geometry(coordinate)
     vis.run()
 
     # 画像保存
@@ -46,8 +51,10 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, 
     pinhole = ctr.convert_to_pinhole_camera_parameters()
     # カメラ外部パラメータ
     extrinsic = pinhole.extrinsic
+    # print(extrinsic)
     pi = pinhole.intrinsic
     im = pi.intrinsic_matrix
+    # print(im)
 
     vis.destroy_window()
 
@@ -97,11 +104,14 @@ def getCameraPoints(points, im):
     return cameraPoints
 
 # カメラ座標からワールド座標への変換
-def getObjectPoints(dx, dy, cameraPoints, extrinsic):
+def getObjectPoints(dx, dy, cameraPoints, extrinsic, points):
 
     # ラジアンに変換
     x = math.radians(dx)
     y = math.radians(dy)
+
+    focal_length = 415.69219382
+    finalPoints = []
 
     # x軸回転
     Rx = np.array([[1, 0, 0],
@@ -114,7 +124,6 @@ def getObjectPoints(dx, dy, cameraPoints, extrinsic):
                    [np.sin(x), 0, np.cos(x)]])
 
     # 最終的な特徴点
-
     for i in range(0, len(cameraPoints)):
         array = np.array(points[i])
         array = np.insert(array, 3, 1)
@@ -122,11 +131,24 @@ def getObjectPoints(dx, dy, cameraPoints, extrinsic):
         objectPoint = np.dot(np.linalg.inv(extrinsic), array.T)
         objectPoint = np.delete(objectPoint, 3, 0)
 
+        temp = objectPoint.T.reshape(3, ).tolist()
+
+        z = focal_length * temp[1] / points[i][1]
+        finalPoints.append([temp[0], temp[1], z])
+
         # 正面向きの座標を取得する
         point = np.dot(np.linalg.inv(Ry), objectPoint)
         points.append(point.T.reshape(3,).tolist())
 
-    return points
+    # 描画用のポイントを整備する
+    finalArray = np.array(finalPoints)
+
+    print(finalArray)
+    pcd = o3d.geometry.PointCloud()
+
+    pcd.points = o3d.utility.Vector3dVector(finalArray)
+    o3d.visualization.draw_geometries([pcd])
+    return finalArray
 
 
 if __name__ == "__main__":
@@ -139,7 +161,7 @@ if __name__ == "__main__":
     height = 480
 
     # 回転角度
-    x = 15
+    x = 0
     y = 0
 
     # 15度x回転させた
@@ -153,5 +175,9 @@ if __name__ == "__main__":
     cameraPoints = getCameraPoints(points, im)
 
     # カメラ座標から実際の座標に変換
-    objectPoints = getObjectPoints(x, y, cameraPoints, extrinsic)
+    objectPoints = getObjectPoints(x, y, cameraPoints, extrinsic, points)
+    # print(objectPoints)
+
+    point = np.array([objectPoints])
+    # print(point)
 
