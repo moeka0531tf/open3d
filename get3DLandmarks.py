@@ -51,10 +51,11 @@ def getRotateImage(objFile, dx, dy = 0, imageName = "faceimage.jpg", width=640, 
     # カメラ内部パラメータ取得
     pi = pinhole.intrinsic
     im = pi.intrinsic_matrix
+    focal_length = pi.get_focal_length()
 
     vis.destroy_window()
 
-    return im, extrinsic
+    return im, extrinsic, focal_length[0]
 
 # 顔特徴点を取得する関数
 def getFacialLandmarks(imageName):
@@ -100,14 +101,11 @@ def getCameraPoints(points, im):
     return cameraPoints
 
 # カメラ座標からワールド座標への変換
-def getObjectPoints(dx, dy, cameraPoints, extrinsic, points):
+def getObjectPoints(dx, dy, cameraPoints, extrinsic, points, focal_length):
 
     # ラジアンに変換
     x = math.radians(dx)
     y = math.radians(dy)
-
-    # 焦点距離
-    focal_length = 415.69219382
 
     # x軸回転
     Rx = np.array([[1, 0, 0],
@@ -159,9 +157,8 @@ if __name__ == "__main__":
     x = 0
     y = 0
 
-    # 15度x回転させた
-    # 焦点距離を取得
-    im, extrinsic = getRotateImage(file, x, y, imageName, width, height)
+    # カメラ内部/外部パラメータ, 焦点距離を取得
+    im, extrinsic, focal_length = getRotateImage(file, x, y, imageName, width, height)
 
     # 顔特徴点取得
     points = getFacialLandmarks(imageName)
@@ -170,7 +167,7 @@ if __name__ == "__main__":
     cameraPoints = getCameraPoints(points, im)
 
     # カメラ座標から実際の座標に変換
-    objectPoints = getObjectPoints(x, y, cameraPoints, extrinsic, points)
+    objectPoints = getObjectPoints(x, y, cameraPoints, extrinsic, points, focal_length)
     # print(objectPoints)
 
     point = np.array([objectPoints])
